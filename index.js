@@ -24,6 +24,10 @@ app.get('/', function(req, res, next){
 // webhook
 // LINEからのリクエストに対するレスポンス
 app.post('/webhook', function(req, res, next){
-    res.status(200).end();//200を返す
-    console.log(req.body);
+    res.status(200).end();
+    for (var event of req.body.events){
+        if (event.type == 'message'){
+            console.log(event.message);
+        }
+    }
 });
