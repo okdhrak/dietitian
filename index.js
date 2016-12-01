@@ -10,6 +10,7 @@ var express = require('express');
 var bodyParser = require('body-parser'); // 追加
 var request = require('request'); // 追加
 var mecab = require('mecabaas-client'); // 追加
+var shokuhin = require('shokuhin-db'); // 追加
 var app = express();
 
 // -----------------------------------------------------------------------------
@@ -67,7 +68,7 @@ app.get('/', function(req, res, next){
     }
 });*/
 
-app.post('/webhook', function(req, res, next){
+/*app.post('/webhook', function(req, res, next){
     res.status(200).end();
     for (var event of req.body.events){
         if (event.type == 'message' && event.message.text){
@@ -80,6 +81,36 @@ app.post('/webhook', function(req, res, next){
                 }
             );
 
+        }
+    }
+});*/
+
+app.post('/webhook', function(req, res, next){
+    res.status(200).end();
+    for (var event of req.body.events){
+        if (event.type == 'message' && event.message.text){
+            mecab.parse(event.message.text)
+            .then(
+                function(response){
+                    var foodList = [];
+                    for (var elem of response){
+                        if (elem.length > 2 && elem[1] == '名詞'){
+                            foodList.push(elem);
+                        }
+                    }
+                    var gotAllNutrition = [];
+                    if (foodList.length > 0){
+                        for (var food of foodList){
+                            gotAllNutrition.push(shokuhin.getNutrition(food[0]));
+                        }
+                        return Promise.all(gotAllNutrition);
+                    }
+                }
+            ).then(
+                function(response){
+                    console.log(response);
+                }
+            );
         }
     }
 });
