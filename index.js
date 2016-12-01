@@ -15,3 +15,10 @@ var server = app.listen(port, function() {
 app.get('/', function(req, res, next){
     res.send('Node is running on port ' + port);
 });
+
+// webhook
+// LINEからのリクエストに対するレスポンス
+app.post('/webhook', function(req, res, next){
+    res.status(200).end();//200を返す
+    console.log(req.body);
+});
