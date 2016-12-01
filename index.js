@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 // 定数の設定
-const LINE_CHANNEL_ACCESS_TOKEN = 'あなたのChannl Access Token'; // 追加
+const LINE_CHANNEL_ACCESS_TOKEN = 'P/1kDx8RI8KTNEU6EAY2PmLh0rWVTUVqNCeIMs05rbHwUJr25umCi98oGhBBYpY+zpY4XLwpuBPZIiL8Hs7PJf8uKL5OwpH/3SK3Xr2a2lKBRlqhhneEa7YFWxP5eLVNWv38AsQR7IAzkuhydZuCJgdB04t89/1O/w1cDnyilFU='; // 追加
 
 // -----------------------------------------------------------------------------
 
@@ -43,19 +43,19 @@ app.post('/webhook', function(req, res, next){
     res.status(200).end();
     for (var event of req.body.events){
         if (event.type == 'message' && event.message.text == 'ハロー'){
-            var headers = {
+            var headers = {//①
                 'Content-Type': 'application/json',
                 'Authorization': 'Bearer ' + LINE_CHANNEL_ACCESS_TOKEN
             }
-            var body = {
+            var body = {//②
                 replyToken: event.replyToken,
                 messages: [{
                     type: 'text',
-                    text: 'こんにちはー'
+                    text: 'しばくぞ！'
                 }]
             }
-            var url = 'https://api.line.me/v2/bot/message/reply';
-            request({
+            var url = 'https://api.line.me/v2/bot/message/reply';//③
+            request({//④
                 url: url,
                 method: 'POST',
                 headers: headers,
