@@ -184,6 +184,38 @@ app.post('/webhook', function(req, res, next){
                     }
                 }
             );
+        } else if (event.type == 'postback'){
+            // リクエストからデータを抽出。
+            var answeredFood = JSON.parse(event.postback.data);
+
+            // 記憶を取り出す。
+            var botMemory = memory.get(event.source.userId);
+
+            // 回答された食品を確定リストに追加
+            botMemory.confirmedFoodList.push(answeredFood);
+
+            /*
+             * もし確認事項がなければ、合計カロリーを返信して終了。
+             * もし確認すべき食品があれば、質問して現在までの状態を記憶に保存。
+             */
+            if (botMemory.toConfirmFoodList.length == 0 && botMemory.confirmedFoodList.length > 0){
+                console.log('Going to reply the total calorie.');
+
+                // 確認事項はないので、確定した食品のカロリーの合計を返信して終了。
+                dietitian.replyTotalCalorie(event.replyToken, botMemory.confirmedFoodList);
+            } else if (botMemory.toConfirmFoodList.length > 0){
+                console.log('Going to ask which food the user had');
+
+                // どの食品が正しいか確認する。
+                dietitian.askWhichFood(event.replyToken, botMemory.toConfirmFoodList[0]);
+
+                // ユーザーに確認している食品は確認中のリストに入れ、確認すべきリストからは削除。
+                botMemory.confirmingFood = botMemory.toConfirmFoodList[0];
+                botMemory.toConfirmFoodList.splice(0, 1);
+
+                // Botの記憶に保存
+                memory.put(event.source.userId, botMemory);
+            }
         }
     }
 });
