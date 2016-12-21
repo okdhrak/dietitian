@@ -2,6 +2,8 @@
 // 定数の設定
 //const LINE_CHANNEL_ACCESS_TOKEN = 'P/1kDx8RI8KTNEU6EAY2PmLh0rWVTUVqNCeIMs05rbHwUJr25umCi98oGhBBYpY+zpY4XLwpuBPZIiL8Hs7PJf8uKL5OwpH/3SK3Xr2a2lKBRlqhhneEa7YFWxP5eLVNWv38AsQR7IAzkuhydZuCJgdB04t89/1O/w1cDnyilFU='; // 追加
 
+const APIAI_CLIENT_ACCESS_TOKEN = '71b095e7757b4450aef8f853de968415';
+
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
@@ -12,12 +14,23 @@ var request = require('request'); // 追加
 var mecab = require('mecabaas-client'); // 追加
 var shokuhin = require('shokuhin-db'); // 追加
 var memory = require('memory-cache'); // 追加
+
+var apiai = require('apiai'); // 追加
+var uuid = require('node-uuid'); // 追加
+var Promise = require('bluebird'); // 追加
+
 var dietitian = require('./dietitian'); // 追加
 var app = express();
 
 // -----------------------------------------------------------------------------
 // ミドルウェア設定
 app.use(bodyParser.json()); // 追加
+
+// 追加：Promiseチェーンのキャンセルを有効にします。
+Promise.config({
+    cancellation: true
+});
+
 
 // -----------------------------------------------------------------------------
 // Webサーバー設定
@@ -121,8 +134,40 @@ app.post('/webhook', function(req, res, next){
     res.status(200).end();
     for (var event of req.body.events){
         if (event.type == 'message' && event.message.text){
-            mecab.parse(event.message.text)
-            .then(
+
+            /*
+             * api.aiでメッセージを処理。レスポンスとしてgotIntentというPromiseを返すように実装。
+             */
+            var aiInstance = apiai(APIAI_CLIENT_ACCESS_TOKEN);
+            var aiRequest = aiInstance.textRequest(event.message.text, {sessionId: uuid.v1()});
+            var gotIntent = new Promise(function(resolve, reject){
+                aiRequest.on('response', function(response){
+                    resolve(response);
+                });
+                aiRequest.end();
+            });
+
+            /*
+             * api.aiからレスポンスが帰ってきたらこの処理を開始。
+             */
+            var main = gotIntent.then(
+                function(response){
+                    console.log(response.result.action);
+                    switch (response.result.action) {
+                        case 'recommendation':
+                            // 意図は「お薦めの食事」だと特定。お薦めの食事を回答します。
+                            dietitian.replyRecommendation(event.replyToken);
+
+                            // ここで処理は終了
+                            main.cancel();
+                            break;
+                        default:
+                            // 意図が特定されなかった場合は食事の報告だと仮定して形態素解析処理へ移る。
+                            return mecab.parse(event.message.text);
+                            break;
+                    }
+                }
+            ).then(
                 function(response){
                     var foodList = [];
                     for (var elem of response){
@@ -140,7 +185,6 @@ app.post('/webhook', function(req, res, next){
                 }
             ).then(
                 function(responseList){
-                    // 記憶すべき情報を整理する。
                     var botMemory = {
                         confirmedFoodList: [],
                         toConfirmFoodList: [],
@@ -164,18 +208,13 @@ app.post('/webhook', function(req, res, next){
                      * もし確認すべき食品があれば、質問して現在までの状態を記憶に保存。
                      */
                     if (botMemory.toConfirmFoodList.length == 0 && botMemory.confirmedFoodList.length > 0){
-                        console.log('Going to reply the total calorie.');
-
                         // 確認事項はないので、確定した食品のカロリーの合計を返信して終了。
                         dietitian.replyTotalCalorie(event.replyToken, botMemory.confirmedFoodList);
-
                     } else if (botMemory.toConfirmFoodList.length > 0){
-                        console.log('Going to ask which food the user had');
-
                         // どの食品が正しいか確認する。
                         dietitian.askWhichFood(event.replyToken, botMemory.toConfirmFoodList[0]);
 
-                        // ユーザーに確認している食品は確認中のリストに入れ、確認すべきリストからは削除。
+                        // 質問した食品は確認中のリストに入れ、質問リストからは削除。
                         botMemory.confirmingFood = botMemory.toConfirmFoodList[0];
                         botMemory.toConfirmFoodList.splice(0, 1);
 
@@ -199,17 +238,13 @@ app.post('/webhook', function(req, res, next){
              * もし確認すべき食品があれば、質問して現在までの状態を記憶に保存。
              */
             if (botMemory.toConfirmFoodList.length == 0 && botMemory.confirmedFoodList.length > 0){
-                console.log('Going to reply the total calorie.');
-
                 // 確認事項はないので、確定した食品のカロリーの合計を返信して終了。
                 dietitian.replyTotalCalorie(event.replyToken, botMemory.confirmedFoodList);
             } else if (botMemory.toConfirmFoodList.length > 0){
-                console.log('Going to ask which food the user had');
-
                 // どの食品が正しいか確認する。
                 dietitian.askWhichFood(event.replyToken, botMemory.toConfirmFoodList[0]);
 
-                // ユーザーに確認している食品は確認中のリストに入れ、確認すべきリストからは削除。
+                // 質問した食品は確認中のリストに入れ、質問リストからは削除。
                 botMemory.confirmingFood = botMemory.toConfirmFoodList[0];
                 botMemory.toConfirmFoodList.splice(0, 1);
 
